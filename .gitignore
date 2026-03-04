@@ -1,0 +1,65 @@
+# ======================
+# Java / Maven
+# ======================
+
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# ======================
+# IDE files
+# ======================
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# ======================
+# OS files
+# ======================
+
+.DS_Store
+Thumbs.db
+
+# ======================
+# Docker
+# ======================
+
+docker-data/
+*.env
+
+# ======================
+# Logs
+# ======================
+
+logs/
+*.log
+
+# ======================
+# Build files
+# ======================
+
+build/
+out/
+
+# ======================
+# Temporary files
+# ======================
+
+*.tmp
+*.swp
+*.bak

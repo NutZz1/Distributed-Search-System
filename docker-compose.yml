@@ -1,0 +1,104 @@
+version: "3.8"
+
+services:
+
+  zookeeper:
+    image: zookeeper:3.9
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - search-network
+
+  helix-controller:
+    build:
+      context: ./infrastructure/helix-controller
+    container_name: helix-controller
+    depends_on:
+      - zookeeper
+    environment:
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    networks:
+      - search-network
+
+  search-node-1:
+    build:
+      context: ./services/search-node
+    container_name: search-node-1
+    depends_on:
+      - zookeeper
+    environment:
+      NODE_ID: node1
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    ports:
+      - "9001:8080"
+    networks:
+      - search-network
+
+  search-node-2:
+    build:
+      context: ./services/search-node
+    container_name: search-node-2
+    depends_on:
+      - zookeeper
+    environment:
+      NODE_ID: node2
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    ports:
+      - "9002:8080"
+    networks:
+      - search-network
+
+  search-node-3:
+    build:
+      context: ./services/search-node
+    container_name: search-node-3
+    depends_on:
+      - zookeeper
+    environment:
+      NODE_ID: node3
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    ports:
+      - "9003:8080"
+    networks:
+      - search-network
+
+  search-node-4:
+    build:
+      context: ./services/search-node
+    container_name: search-node-4
+    depends_on:
+      - zookeeper
+    environment:
+      NODE_ID: node4
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    ports:
+      - "9004:8080"
+    networks:
+      - search-network
+
+  query-router:
+    build:
+      context: ./services/query-router
+    container_name: query-router
+    depends_on:
+      - search-node-1
+      - search-node-2
+      - search-node-3
+      - search-node-4
+    environment:
+      ZOOKEEPER_ADDRESS: zookeeper:2181
+      CLUSTER_NAME: search-cluster
+    ports:
+      - "8080:8080"
+    networks:
+      - search-network
+
+networks:
+  search-network:
+    driver: bridge
