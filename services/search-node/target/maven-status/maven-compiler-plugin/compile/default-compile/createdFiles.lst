@@ -1,0 +1,6 @@
+com\distributedsearch\node\SearchController.class
+com\distributedsearch\node\Document.class
+com\distributedsearch\node\InvertedIndex.class
+com\distributedsearch\node\TestSearch.class
+com\distributedsearch\node\SearchService.class
+com\distributedsearch\node\SearchNodeMain.class
