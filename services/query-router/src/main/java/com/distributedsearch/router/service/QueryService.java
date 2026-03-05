@@ -1,0 +1,120 @@
+package com.distributedsearch.router.service;
+
+import com.distributedsearch.router.client.NodeClient;
+import com.distributedsearch.router.model.SearchResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+
+/**
+ * Core query routing service.
+ * Distributes search queries to all shard leaders and aggregates results.
+ */
+@Service
+public class QueryService {
+
+    private static final Logger logger = LoggerFactory.getLogger(QueryService.class);
+    private static final int MAX_RETRY_ATTEMPTS = 1;
+    private static final int QUERY_TIMEOUT_SECONDS = 5;
+
+    @Autowired
+    private HelixMetadataService helixMetadataService;
+
+    @Autowired
+    private NodeClient nodeClient;
+
+    private final ExecutorService executorService;
+
+    public QueryService() {
+        // Thread pool for parallel queries to multiple nodes
+        this.executorService = Executors.newFixedThreadPool(10);
+    }
+
+    /**
+     * Execute a search query across all shard leaders.
+     * Queries are sent in parallel for low latency.
+     * Results from all nodes are merged and returned.
+     * 
+     * @param query The search query string
+     * @return Merged list of search results from all nodes
+     */
+    public List<SearchResult> search(String query) {
+        logger.info("Received search query: {}", query);
+        
+        // Get current shard leaders from Helix
+        List<String> leaders = helixMetadataService.getShardLeaders();
+        logger.info("Querying {} shard leaders", leaders.size());
+        
+        // Execute queries to all leaders in parallel
+        List<SearchResult> allResults = queryNodesInParallel(leaders, query, 0);
+        
+        logger.info("Returning {} total results for query: {}", allResults.size(), query);
+        return allResults;
+    }
+
+    /**
+     * Query multiple nodes in parallel and merge results.
+     * Implements retry logic for failed nodes.
+     */
+    private List<SearchResult> queryNodesInParallel(List<String> nodes, String query, int attemptNumber) {
+        List<Future<List<SearchResult>>> futures = new ArrayList<>();
+        
+        // Submit query tasks for each node
+        for (String node : nodes) {
+            Future<List<SearchResult>> future = executorService.submit(() -> {
+                return nodeClient.search(node, query);
+            });
+            futures.add(future);
+        }
+        
+        // Collect results from all nodes
+        List<SearchResult> mergedResults = new ArrayList<>();
+        List<String> failedNodes = new ArrayList<>();
+        
+        for (int i = 0; i < futures.size(); i++) {
+            try {
+                // Wait for node response with timeout
+                List<SearchResult> nodeResults = futures.get(i).get(QUERY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                mergedResults.addAll(nodeResults);
+                
+            } catch (TimeoutException e) {
+                String node = nodes.get(i);
+                logger.error("Timeout querying node: {}", node);
+                failedNodes.add(node);
+                
+            } catch (Exception e) {
+                String node = nodes.get(i);
+                logger.error("Error querying node {}: {}", node, e.getMessage());
+                failedNodes.add(node);
+            }
+        }
+        
+        // Retry failed nodes if this is the first attempt
+        if (!failedNodes.isEmpty() && attemptNumber < MAX_RETRY_ATTEMPTS) {
+            logger.info("Retrying {} failed nodes", failedNodes.size());
+            
+            // Refresh leader list from Helix (topology may have changed)
+            List<String> refreshedLeaders = helixMetadataService.getShardLeaders();
+            
+            // Filter to only retry nodes that are still in the leader list
+            List<String> nodesToRetry = new ArrayList<>();
+            for (String failedNode : failedNodes) {
+                if (refreshedLeaders.contains(failedNode)) {
+                    nodesToRetry.add(failedNode);
+                }
+            }
+            
+            if (!nodesToRetry.isEmpty()) {
+                List<SearchResult> retryResults = queryNodesInParallel(nodesToRetry, query, attemptNumber + 1);
+                mergedResults.addAll(retryResults);
+            }
+        }
+        
+        return mergedResults;
+    }
+}
