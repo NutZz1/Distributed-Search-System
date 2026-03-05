@@ -3,12 +3,17 @@
 services:
 
   zookeeper:
-    image: zookeeper:3.9
+    image: zookeeper:3.5.10
     container_name: zookeeper
     ports:
       - "2181:2181"
     networks:
       - search-network
+    healthcheck:
+      test: [ "CMD", "zkServer.sh", "status" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   helix-controller:
     build:
@@ -16,10 +21,12 @@ services:
     container_name: helix-controller
     depends_on:
       zookeeper:
-        condition: service_started
+        condition: service_healthy
     environment:
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
+      NUM_SHARDS: "2"
+      NUM_REPLICAS: "2"
     networks:
       - search-network
 
@@ -28,9 +35,12 @@ services:
       context: ./services/search-node
     container_name: search-node-1
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+      helix-controller:
+        condition: service_started
     environment:
-      NODE_ID: node1
+      NODE_ID: search-node-1
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
     ports:
@@ -43,9 +53,12 @@ services:
       context: ./services/search-node
     container_name: search-node-2
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+      helix-controller:
+        condition: service_started
     environment:
-      NODE_ID: node2
+      NODE_ID: search-node-2
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
     ports:
@@ -58,9 +71,12 @@ services:
       context: ./services/search-node
     container_name: search-node-3
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+      helix-controller:
+        condition: service_started
     environment:
-      NODE_ID: node3
+      NODE_ID: search-node-3
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
     ports:
@@ -73,9 +89,12 @@ services:
       context: ./services/search-node
     container_name: search-node-4
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+      helix-controller:
+        condition: service_started
     environment:
-      NODE_ID: node4
+      NODE_ID: search-node-4
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
     ports:

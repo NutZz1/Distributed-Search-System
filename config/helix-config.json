@@ -1,0 +1,26 @@
+{
+  "cluster": {
+    "name": "search-cluster",
+    "zookeeper": "zookeeper:2181"
+  },
+  "resource": {
+    "name": "search-index",
+    "stateModel": "MasterSlave",
+    "rebalanceMode": "FULL_AUTO",
+    "numShards": 2,
+    "numReplicas": 2
+  },
+  "participants": [
+    "search-node-1",
+    "search-node-2",
+    "search-node-3",
+    "search-node-4"
+  ],
+  "notes": {
+    "description": "Helix will automatically assign shards to participants using FULL_AUTO rebalance mode",
+    "expectedAssignment": {
+      "Shard_0": { "MASTER": "search-node-1 or search-node-2", "SLAVE": "another node" },
+      "Shard_1": { "MASTER": "search-node-3 or search-node-4", "SLAVE": "another node" }
+    }
+  }
+}
