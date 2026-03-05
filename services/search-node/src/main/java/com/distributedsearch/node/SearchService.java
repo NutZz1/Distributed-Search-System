@@ -2,10 +2,13 @@ package com.distributedsearch.node;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Shard-aware search service.
@@ -16,6 +19,12 @@ public class SearchService {
     
     private static final Logger logger = LoggerFactory.getLogger(SearchService.class);
     
+    @Autowired
+    private ReplicationService replicationService;
+
+    // Background thread pool for async replication — writes never block on SLAVE responses
+    private final ExecutorService replicationExecutor = Executors.newFixedThreadPool(4);
+
     // Thread-safe storage
     private final Map<Integer, Document> documents = new ConcurrentHashMap<>();
     private final InvertedIndex index = new InvertedIndex();
@@ -31,7 +40,7 @@ public class SearchService {
      * Represents the state of a partition assigned to this node
      */
     private static class PartitionState {
-        boolean isMaster;
+        volatile boolean isMaster;
         
         PartitionState(boolean isMaster) {
             this.isMaster = isMaster;
@@ -111,12 +120,28 @@ public class SearchService {
                 ". Only MASTER nodes accept writes.");
         }
         
-        // Store the document
+        // Store the document — lock covers only the local write (fast)
         documents.put(doc.getId(), doc);
         index.addDocument(doc);
         
         logger.info("✓ Indexed document {} to partition {} (shard {})", 
                    doc.getId(), partitionName, shardId);
+
+        // Replicate asynchronously — SLAVE latency/failures never block this MASTER
+        final String capturedPartition = partitionName;
+        replicationExecutor.submit(() -> 
+            replicationService.replicateToSlaves(doc, capturedPartition)
+        );
+    }
+
+    /**
+     * Store a document directly without partition/role checks.
+     * Called by SLAVE nodes receiving replicated documents from the MASTER.
+     */
+    public synchronized void storeDocumentDirectly(Document doc) {
+        documents.put(doc.getId(), doc);
+        index.addDocument(doc);
+        logger.info("[Replication] ✓ Stored replicated document {} locally", doc.getId());
     }
 
     /**
@@ -164,6 +189,23 @@ public class SearchService {
         assignedPartitions.forEach((partition, state) -> 
             result.put(partition, state.isMaster)
         );
+        return result;
+    }
+
+    /**
+     * Return all documents that belong to the given partition.
+     * Used by the /snapshot endpoint so a rejoining SLAVE can catch up.
+     */
+    public List<Document> getDocumentsForPartition(String partitionName) {
+        List<Document> result = new ArrayList<>();
+        for (Map.Entry<Integer, Document> entry : documents.entrySet()) {
+            int shardId = getShardForDocument(entry.getKey());
+            String docPartition = RESOURCE_NAME + "_" + shardId;
+            if (docPartition.equals(partitionName)) {
+                result.add(entry.getValue());
+            }
+        }
+        logger.info("[Snapshot] Returning {} documents for partition: {}", result.size(), partitionName);
         return result;
     }
 }

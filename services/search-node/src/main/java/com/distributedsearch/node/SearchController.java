@@ -61,6 +61,26 @@ public class SearchController {
     }
 
     /**
+     * Replication endpoint — called by the MASTER to push a document copy to this SLAVE.
+     * Bypasses partition-ownership and MASTER checks; the document is stored directly.
+     */
+    @PostMapping("/replicate")
+    public ResponseEntity<String> replicateDocument(@RequestBody Document doc) {
+        try {
+            if (doc == null || doc.getId() < 0) {
+                return ResponseEntity.badRequest().body("Invalid document");
+            }
+            service.storeDocumentDirectly(doc);
+            logger.info("[Replication] Accepted replicated document: {}", doc.getId());
+            return ResponseEntity.ok("Replicated");
+        } catch (Exception e) {
+            logger.error("[Replication] Error storing replicated document", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                 .body("Replication error: " + e.getMessage());
+        }
+    }
+
+    /**
      * Search for documents matching the query.
      * Returns results only from partitions assigned to this node.
      */
@@ -79,6 +99,27 @@ public class SearchController {
             
         } catch (Exception e) {
             logger.error("Error processing search query: '{}'", q, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Snapshot endpoint — called by a rejoining SLAVE to pull all documents
+     * for a given partition from this MASTER and catch up on missed writes.
+     *
+     * GET /snapshot?partition=search-index_0
+     */
+    @GetMapping("/snapshot")
+    public ResponseEntity<List<Document>> snapshot(@RequestParam String partition) {
+        try {
+            if (partition == null || partition.trim().isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+            List<Document> docs = service.getDocumentsForPartition(partition);
+            logger.info("[Snapshot] Serving {} documents for partition: {}", docs.size(), partition);
+            return ResponseEntity.ok(docs);
+        } catch (Exception e) {
+            logger.error("[Snapshot] Error serving snapshot for partition: {}", partition, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

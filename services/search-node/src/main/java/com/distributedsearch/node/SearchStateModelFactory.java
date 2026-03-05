@@ -15,15 +15,17 @@ public class SearchStateModelFactory extends StateModelFactory<StateModel> {
     
     private static final Logger logger = LoggerFactory.getLogger(SearchStateModelFactory.class);
     private final SearchService searchService;
+    private final ReplicationService replicationService;
 
-    public SearchStateModelFactory(SearchService searchService) {
+    public SearchStateModelFactory(SearchService searchService, ReplicationService replicationService) {
         this.searchService = searchService;
+        this.replicationService = replicationService;
     }
 
     @Override
     public StateModel createNewStateModel(String resourceName, String partitionName) {
         logger.info("Creating state model for resource: {}, partition: {}", resourceName, partitionName);
-        return new SearchStateModel(partitionName, searchService);
+        return new SearchStateModel(partitionName, searchService, replicationService);
     }
 
     /**
@@ -35,10 +37,12 @@ public class SearchStateModelFactory extends StateModelFactory<StateModel> {
         private static final Logger logger = LoggerFactory.getLogger(SearchStateModel.class);
         private final String partitionName;
         private final SearchService searchService;
+        private final ReplicationService replicationService;
 
-        public SearchStateModel(String partitionName, SearchService searchService) {
+        public SearchStateModel(String partitionName, SearchService searchService, ReplicationService replicationService) {
             this.partitionName = partitionName;
             this.searchService = searchService;
+            this.replicationService = replicationService;
         }
 
         /**
@@ -48,6 +52,9 @@ public class SearchStateModelFactory extends StateModelFactory<StateModel> {
         public void onBecomeSlaveFromOffline(Message message, NotificationContext context) {
             logger.info("⬆️ OFFLINE → SLAVE for partition: {}", partitionName);
             searchService.addPartition(partitionName, false);
+            // Catch-up sync: pull all documents from the current MASTER so this
+            // node is consistent before it starts serving reads.
+            replicationService.syncFromMaster(partitionName, searchService);
         }
 
         /**

@@ -30,9 +30,10 @@ public class SearchNodeMain {
         logger.info("Starting Spring Boot application...");
         ConfigurableApplicationContext context = SpringApplication.run(SearchNodeMain.class, args);
         
-        // Get the SearchService bean from Spring context
+        // Get the SearchService and ReplicationService beans from Spring context
         SearchService searchService = context.getBean(SearchService.class);
-        logger.info("✓ SearchService bean initialized");
+        ReplicationService replicationService = context.getBean(ReplicationService.class);
+        logger.info("✓ SearchService and ReplicationService beans initialized");
 
         // Connect to Helix cluster as PARTICIPANT
         logger.info("Connecting to Helix cluster as PARTICIPANT...");
@@ -47,7 +48,7 @@ public class SearchNodeMain {
         logger.info("Registering MasterSlave state model factory...");
         manager.getStateMachineEngine().registerStateModelFactory(
             "MasterSlave",
-            new SearchStateModelFactory(searchService)
+            new SearchStateModelFactory(searchService, replicationService)
         );
 
         // Connect to cluster

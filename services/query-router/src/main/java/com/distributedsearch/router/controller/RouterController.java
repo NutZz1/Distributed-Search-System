@@ -35,7 +35,7 @@ public class RouterController {
      * @return List of search results in JSON format
      */
     @GetMapping("/search")
-    public ResponseEntity<List<Document>> search(@RequestParam(value = "query", defaultValue = "") String query) {
+    public ResponseEntity<List<Document>> search(@RequestParam(value = "q", defaultValue = "") String query) {
         logger.info("Search request received: query={}", query);
         
         if (query == null || query.trim().isEmpty()) {

@@ -109,20 +109,30 @@ public class QueryService {
         if (!failedNodes.isEmpty() && attemptNumber < MAX_RETRY_ATTEMPTS) {
             logger.info("Retrying {} failed nodes", failedNodes.size());
             
-            // Refresh leader list from Helix (topology may have changed)
+            // Refresh leader list from Helix — may now contain newly elected MASTERs
             List<String> refreshedLeaders = helixMetadataService.getShardLeaders();
             
-            // Filter to only retry nodes that are still in the leader list
+            // Nodes that already responded successfully this attempt
+            List<String> successfulNodes = new ArrayList<>(nodes);
+            successfulNodes.removeAll(failedNodes);
+            
+            // Retry any refreshed leader that we haven't already heard from.
+            // This correctly picks up newly elected MASTERs for shards whose old
+            // MASTER just failed — the dead node will NOT appear in refreshedLeaders,
+            // but its replacement will.
             List<String> nodesToRetry = new ArrayList<>();
-            for (String failedNode : failedNodes) {
-                if (refreshedLeaders.contains(failedNode)) {
-                    nodesToRetry.add(failedNode);
+            for (String refreshedLeader : refreshedLeaders) {
+                if (!successfulNodes.contains(refreshedLeader)) {
+                    nodesToRetry.add(refreshedLeader);
                 }
             }
             
             if (!nodesToRetry.isEmpty()) {
+                logger.info("Retrying against new leaders: {}", nodesToRetry);
                 List<Document> retryResults = queryNodesInParallel(nodesToRetry, query, attemptNumber + 1);
                 mergedResults.addAll(retryResults);
+            } else {
+                logger.warn("No new leaders found for failed shards — results may be incomplete");
             }
         }
         
