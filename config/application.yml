@@ -1,0 +1,17 @@
+# Distributed Search System Configuration
+cluster:
+  name: search-cluster
+  zookeeper: zookeeper:2181
+
+helix:
+  resource: search-index
+  stateModel: MasterSlave
+  rebalanceMode: FULL_AUTO
+  shards: 2
+  replicas: 2
+
+participants:
+  - search-node-1
+  - search-node-2
+  - search-node-3
+  - search-node-4
