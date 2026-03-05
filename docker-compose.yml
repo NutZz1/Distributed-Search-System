@@ -1,5 +1,3 @@
-
-
 services:
 
   zookeeper:
@@ -116,6 +114,19 @@ services:
       CLUSTER_NAME: search-cluster
     ports:
       - "8080:8080"
+    networks:
+      - search-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  frontend:
+    build:
+      context: ./services/frontend
+    container_name: frontend
+    depends_on:
+      - query-router
+    ports:
+      - "3000:80"
     networks:
       - search-network
 
