@@ -1,6 +1,6 @@
 package com.distributedsearch.router.controller;
 
-import com.distributedsearch.router.model.SearchResult;
+import com.distributedsearch.router.model.Document;
 import com.distributedsearch.router.service.QueryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,8 +35,8 @@ public class RouterController {
      * @return List of search results in JSON format
      */
     @GetMapping("/search")
-    public ResponseEntity<List<SearchResult>> search(@RequestParam("q") String query) {
-        logger.info("Search request received: q={}", query);
+    public ResponseEntity<List<Document>> search(@RequestParam(value = "query", defaultValue = "") String query) {
+        logger.info("Search request received: query={}", query);
         
         if (query == null || query.trim().isEmpty()) {
             logger.warn("Empty query received");
@@ -45,7 +45,7 @@ public class RouterController {
         
         try {
             // Execute distributed search
-            List<SearchResult> results = queryService.search(query.trim());
+            List<Document> results = queryService.search(query.trim());
             
             logger.info("Search completed: {} results", results.size());
             return ResponseEntity.ok(results);

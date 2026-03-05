@@ -3,6 +3,7 @@ package com.distributedsearch.router.service;
 import org.apache.helix.HelixManager;
 import org.apache.helix.HelixManagerFactory;
 import org.apache.helix.InstanceType;
+import org.apache.helix.PropertyKey;
 import org.apache.helix.model.ExternalView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,10 +25,10 @@ public class HelixMetadataService {
 
     private static final Logger logger = LoggerFactory.getLogger(HelixMetadataService.class);
 
-    @Value("${helix.cluster.name:SearchCluster}")
+    @Value("${helix.cluster.name:search-cluster}")
     private String clusterName;
 
-    @Value("${helix.zookeeper.address:localhost:2181}")
+    @Value("${helix.zookeeper.address:zookeeper:2181}")
     private String zkAddress;
 
     private HelixManager helixManager;
@@ -35,6 +36,10 @@ public class HelixMetadataService {
     @PostConstruct
     public void init() {
         try {
+            // Wait for cluster to be ready
+            logger.info("Waiting 10 seconds for cluster to initialize...");
+            Thread.sleep(10000);
+            
             // Connect to Helix cluster as a SPECTATOR (read-only observer)
             logger.info("Connecting to Helix cluster: {} via ZooKeeper: {}", clusterName, zkAddress);
             
@@ -73,17 +78,18 @@ public class HelixMetadataService {
         
         try {
             if (helixManager != null && helixManager.isConnected()) {
-                // Get external view of the search index resource
-                ExternalView externalView = helixManager.getClusterManagmentTool()
-                    .getResourceExternalView(clusterName, "SearchIndex");
+                // Get external view of the search index resource using HelixDataAccessor
+                PropertyKey.Builder keyBuilder = helixManager.getHelixDataAccessor().keyBuilder();
+                ExternalView externalView = helixManager.getHelixDataAccessor()
+                    .getProperty(keyBuilder.externalView("search-index"));
                 
                 if (externalView != null) {
-                    // Iterate through partitions to find LEADER instances
+                    // Iterate through partitions to find MASTER instances
                     for (String partition : externalView.getPartitionSet()) {
                         Map<String, String> stateMap = externalView.getStateMap(partition);
                         
                         for (Map.Entry<String, String> entry : stateMap.entrySet()) {
-                            if ("LEADER".equals(entry.getValue())) {
+                            if ("MASTER".equals(entry.getValue())) {
                                 String instance = entry.getKey();
                                 // Convert instance name to network address
                                 String address = convertInstanceToAddress(instance);
@@ -121,10 +127,11 @@ public class HelixMetadataService {
 
     /**
      * Convert Helix instance name to network address.
-     * Example: "search-node-1_8080" -> "search-node-1:8080"
+     * Instance names are just hostnames in our setup (e.g., "search-node-1")
+     * We append the port 8080 since all search nodes use the same port.
      */
     private String convertInstanceToAddress(String instance) {
-        // Helix instance names are typically in format: hostname_port
-        return instance.replace("_", ":");
+        // Instance names are like "search-node-1", add port
+        return instance + ":8080";
     }
 }
