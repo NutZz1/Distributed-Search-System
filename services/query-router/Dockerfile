@@ -7,4 +7,4 @@ COPY src ./src
 
 RUN mvn clean package -DskipTests
 
-CMD ["java", "-jar", "target/query-router.jar"]
+CMD ["java", "-jar", "target/query-router-1.0.jar"]

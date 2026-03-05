@@ -7,4 +7,4 @@ COPY src ./src
 
 RUN mvn clean package -DskipTests
 
-CMD ["java", "-jar", "target/helix-controller.jar"]
+CMD ["java", "-jar", "target/helix-controller-1.0.jar"]

@@ -7,4 +7,4 @@ COPY src ./src
 
 RUN mvn clean package -DskipTests
 
-CMD ["java", "-jar", "target/search-node.jar"]
+CMD ["java", "-jar", "target/search-node-1.0.jar"]

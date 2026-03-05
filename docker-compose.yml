@@ -1,4 +1,4 @@
-version: "3.8"
+
 
 services:
 
@@ -15,7 +15,8 @@ services:
       context: ./infrastructure/helix-controller
     container_name: helix-controller
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_started
     environment:
       ZOOKEEPER_ADDRESS: zookeeper:2181
       CLUSTER_NAME: search-cluster
